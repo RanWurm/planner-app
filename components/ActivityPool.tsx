@@ -17,9 +17,10 @@ interface Props {
   onAdd: (activity: Omit<Activity, 'id' | 'createdAt'>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClearAll: () => Promise<void>;
+  onSchedule: (activity: Activity) => void;
 }
 
-export default function ActivityPool({ activities, onAdd, onDelete, onClearAll }: Props) {
+export default function ActivityPool({ activities, onAdd, onDelete, onClearAll, onSchedule }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -190,6 +191,16 @@ export default function ActivityPool({ activities, onAdd, onDelete, onClearAll }
                         </div>
                         <span className="text-xs text-gray-400">{activity.duration} דקות</span>
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSchedule(activity);
+                        }}
+                        className="text-gray-300 hover:text-indigo-500 transition text-sm leading-none flex-shrink-0"
+                        title="תזמן פעילות"
+                      >
+                        +
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

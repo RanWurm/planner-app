@@ -15,11 +15,12 @@ interface Props {
   onDeleteEvent: (id: string) => void;
   minDate: Date;
   maxDate: Date;
+  onCellPress: (dateStr: string, time: string) => void;
 }
 
 const DAY_NAMES = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 
-export default function MonthView({ date, events, onDeleteEvent, minDate, maxDate }: Props) {
+export default function MonthView({ date, events, onDeleteEvent, minDate, maxDate, onCellPress }: Props) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   const monthStart = startOfMonth(date);
@@ -62,6 +63,9 @@ export default function MonthView({ date, events, onDeleteEvent, minDate, maxDat
                     } ${isToday(day) ? 'bg-indigo-50/40' : ''}
                     ${snapshot.isDraggingOver ? 'bg-indigo-100/60' : ''}
                     ${isPast ? 'opacity-50' : ''}`}
+                    onClick={() => {
+                      if (!isPast) onCellPress(dateStr, '09:00');
+                    }}
                   >
                     <div
                       className={`text-xs font-medium w-5 h-5 flex items-center justify-center rounded-full mb-1 ${

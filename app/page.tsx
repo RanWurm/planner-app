@@ -7,7 +7,8 @@ import ActivityPool from '@/components/ActivityPool';
 import DayView from '@/components/DayView';
 import WeekView from '@/components/WeekView';
 import MonthView from '@/components/MonthView';
-import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay } from 'date-fns';
+import { ScheduleActivityModal, PickActivityModal } from '@/components/ScheduleModal';
+import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay, format } from 'date-fns';
 import { signOut } from 'next-auth/react';
 
 const TODAY = new Date();
@@ -28,6 +29,9 @@ export default function PlannerPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showPool, setShowPool] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [scheduleModal, setScheduleModal] = useState<Activity | null>(null);
+  const [cellModal, setCellModal] = useState<{ date: string; time: string } | null>(null);
+  const [lastModalDate, setLastModalDate] = useState(new Date());
 
   useEffect(() => {
     Promise.all([
@@ -65,6 +69,58 @@ export default function PlannerPage() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
+  const handleScheduleConfirm = useCallback(async (startTime: string, date: Date) => {
+    if (!scheduleModal) return;
+    setLastModalDate(date);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const endTime = calcEndTime(startTime, scheduleModal.duration);
+    const res = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activityId: scheduleModal.id,
+        title: scheduleModal.title,
+        description: scheduleModal.description,
+        duration: scheduleModal.duration,
+        color: scheduleModal.color,
+        date: dateStr,
+        startTime,
+        endTime,
+      }),
+    });
+    const newEvent = await res.json();
+    setEvents((prev) => [...prev, newEvent]);
+    await handleDeleteActivity(scheduleModal.id);
+    setScheduleModal(null);
+  }, [scheduleModal, handleDeleteActivity]);
+
+  const handleCellPress = useCallback((dateStr: string, time: string) => {
+    setCellModal({ date: dateStr, time });
+  }, []);
+
+  const handlePickActivityConfirm = useCallback(async (activity: Activity) => {
+    if (!cellModal) return;
+    const endTime = calcEndTime(cellModal.time, activity.duration);
+    const res = await fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activityId: activity.id,
+        title: activity.title,
+        description: activity.description,
+        duration: activity.duration,
+        color: activity.color,
+        date: cellModal.date,
+        startTime: cellModal.time,
+        endTime,
+      }),
+    });
+    const newEvent = await res.json();
+    setEvents((prev) => [...prev, newEvent]);
+    await handleDeleteActivity(activity.id);
+    setCellModal(null);
+  }, [cellModal, handleDeleteActivity]);
+
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
       const { destination, draggableId, source } = result;
@@ -80,15 +136,33 @@ export default function PlannerPage() {
       const targetDate = new Date(dateStr + 'T00:00:00');
       if (isBefore(targetDate, TODAY) && !isSameDay(targetDate, TODAY)) return;
 
-      let activityData: Activity | undefined;
-      let existingEvent: CalendarEvent | undefined;
-
       if (srcId === 'pool') {
         const activityId = draggableId.replace('pool-', '');
-        activityData = activities.find((a) => a.id === activityId);
+        const activityData = activities.find((a) => a.id === activityId);
+        if (!activityData) return;
+        const startTime = '09:00';
+        const endTime = calcEndTime(startTime, activityData.duration);
+        const res = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activityId: activityData.id,
+            title: activityData.title,
+            description: activityData.description,
+            duration: activityData.duration,
+            color: activityData.color,
+            date: dateStr,
+            startTime,
+            endTime,
+          }),
+        });
+        const newEvent = await res.json();
+        setEvents((prev) => [...prev, newEvent]);
+        await handleDeleteActivity(activityData.id);
+
       } else if (srcId.startsWith('day-')) {
         const eventId = draggableId.replace('event-', '');
-        existingEvent = events.find((e) => e.id === eventId);
+        const existingEvent = events.find((e) => e.id === eventId);
         if (!existingEvent) return;
         await handleDeleteEvent(eventId);
         const startTime = '09:00';
@@ -100,32 +174,9 @@ export default function PlannerPage() {
         });
         const newEvent = await res.json();
         setEvents((prev) => [...prev, newEvent]);
-        return;
       }
-
-      if (!activityData) return;
-
-      const startTime = '09:00';
-      const endTime = calcEndTime(startTime, activityData.duration);
-
-      const res = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activityId: activityData.id,
-          title: activityData.title,
-          description: activityData.description,
-          duration: activityData.duration,
-          color: activityData.color,
-          date: dateStr,
-          startTime,
-          endTime,
-        }),
-      });
-      const newEvent = await res.json();
-      setEvents((prev) => [...prev, newEvent]);
     },
-    [activities, events, handleDeleteEvent]
+    [activities, events, handleDeleteActivity, handleDeleteEvent]
   );
 
   const navigate = (dir: 'prev' | 'next') => {
@@ -147,7 +198,6 @@ export default function PlannerPage() {
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div dir="rtl" className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-        {/* Top bar */}
         <header className="bg-white border-b border-gray-200 px-3 py-2 flex items-center justify-between gap-2 flex-shrink-0 shadow-sm">
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xl">📅</span>
@@ -184,7 +234,6 @@ export default function PlannerPage() {
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
               className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-gray-500 transition"
-              title="יציאה"
             >
               ↩
             </button>
@@ -192,16 +241,12 @@ export default function PlannerPage() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Calendar */}
           <div className="flex-1 flex flex-col overflow-hidden bg-white">
-            {viewMode === 'day' && <DayView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} />}
-            {viewMode === 'week' && <WeekView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} />}
-            {viewMode === 'month' && (
-              <MonthView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} minDate={TODAY} maxDate={addMonths(TODAY, 120)} />
-            )}
+            {viewMode === 'day' && <DayView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} />}
+            {viewMode === 'week' && <WeekView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} />}
+            {viewMode === 'month' && <MonthView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} minDate={TODAY} maxDate={addMonths(TODAY, 120)} onCellPress={handleCellPress} />}
           </div>
 
-          {/* Pool sidebar */}
           {showPool && (
             <div className="w-60 sm:w-64 border-r border-gray-200 bg-white flex flex-col p-3 overflow-hidden flex-shrink-0">
               <ActivityPool
@@ -209,10 +254,30 @@ export default function PlannerPage() {
                 onAdd={handleAddActivity}
                 onDelete={handleDeleteActivity}
                 onClearAll={handleClearAll}
+                onSchedule={(activity) => setScheduleModal(activity)}
               />
             </div>
           )}
         </div>
+
+        {scheduleModal && (
+          <ScheduleActivityModal
+            activity={scheduleModal}
+            initialDate={lastModalDate}
+            onConfirm={handleScheduleConfirm}
+            onClose={() => setScheduleModal(null)}
+          />
+        )}
+
+        {cellModal && (
+          <PickActivityModal
+            activities={activities}
+            targetDate={new Date(cellModal.date + 'T00:00:00')}
+            targetTime={cellModal.time}
+            onConfirm={handlePickActivityConfirm}
+            onClose={() => setCellModal(null)}
+          />
+        )}
       </div>
     </DragDropContext>
   );

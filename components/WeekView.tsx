@@ -13,9 +13,10 @@ interface Props {
   date: Date;
   events: CalendarEvent[];
   onDeleteEvent: (id: string) => void;
+  onCellPress: (dateStr: string, time: string) => void;
 }
 
-export default function WeekView({ date, events, onDeleteEvent }: Props) {
+export default function WeekView({ date, events, onDeleteEvent, onCellPress }: Props) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const weekStart = startOfWeek(date, { weekStartsOn: 0 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -70,6 +71,15 @@ export default function WeekView({ date, events, onDeleteEvent }: Props) {
                       className={`relative border-r border-gray-100 ${
                         snapshot.isDraggingOver ? 'bg-indigo-50/50' : isToday(day) ? 'bg-indigo-50/20' : ''
                       }`}
+                      onClick={(e) => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const y = e.clientY - rect.top;
+                        const totalMinutes = Math.round((y / SLOT_HEIGHT) * 60 / 10) * 10;
+                        const h = Math.floor(totalMinutes / 60);
+                        const m = totalMinutes % 60;
+                        const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        onCellPress(dateStr, time);
+                      }}
                     >
                       {/* Hour lines */}
                       {HOURS.map((h) => (

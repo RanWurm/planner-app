@@ -13,9 +13,10 @@ interface Props {
   date: Date;
   events: CalendarEvent[];
   onDeleteEvent: (id: string) => void;
+  onCellPress: (dateStr: string, time: string) => void;
 }
 
-export default function DayView({ date, events, onDeleteEvent }: Props) {
+export default function DayView({ date, events, onDeleteEvent, onCellPress }: Props) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const dateStr = format(date, 'yyyy-MM-dd');
   const dayEvents = events.filter((e) => e.date === dateStr);
@@ -74,6 +75,15 @@ export default function DayView({ date, events, onDeleteEvent }: Props) {
                 className={`absolute inset-0 mr-10 transition-colors ${
                   snapshot.isDraggingOver ? 'bg-indigo-50/50' : ''
                 }`}
+                onClick={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+                  const totalMinutes = Math.round((y / SLOT_HEIGHT) * 60 / 10) * 10;
+                  const h = Math.floor(totalMinutes / 60);
+                  const m = totalMinutes % 60;
+                  const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                  onCellPress(dateStr, time);
+                }}
               >
                 {/* Placed events */}
                 {dayEvents.map((event) => {
