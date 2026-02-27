@@ -39,8 +39,8 @@ export default function DayView({ date, events, onDeleteEvent, onCellPress }: Pr
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto relative">
-        <div className="relative" style={{ height: `${24 * SLOT_HEIGHT}px` }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
+        <div className="relative pt-3 pb-3" style={{ height: `${24 * SLOT_HEIGHT + 24}px` }}>
           {/* Hour lines */}
           {HOURS.map((hour) => (
             <div
