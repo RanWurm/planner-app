@@ -8,7 +8,8 @@ import DayView from '@/components/DayView';
 import WeekView from '@/components/WeekView';
 import MonthView from '@/components/MonthView';
 import { PickActivityModal } from '@/components/ScheduleModal';
-import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay } from 'date-fns';
+import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay, format, startOfWeek } from 'date-fns';
+import { he } from 'date-fns/locale';
 import { signOut } from 'next-auth/react';
 
 const TODAY = new Date();
@@ -20,6 +21,19 @@ function calcEndTime(startTime: string, duration: number): string {
   const endH = Math.floor(totalMinutes / 60) % 24;
   const endM = totalMinutes % 60;
   return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+}
+
+function hasOverlap(events: CalendarEvent[], date: string, startTime: string, endTime: string): boolean {
+  const [sH, sM] = startTime.split(':').map(Number);
+  const [eH, eM] = endTime.split(':').map(Number);
+  const newStart = sH * 60 + sM;
+  const newEnd = eH * 60 + eM;
+  return events.some((ev) => {
+    if (ev.date !== date) return false;
+    const [esH, esM] = ev.startTime.split(':').map(Number);
+    const [eeH, eeM] = ev.endTime.split(':').map(Number);
+    return newStart < eeH * 60 + eeM && newEnd > esH * 60 + esM;
+  });
 }
 
 export default function PlannerPage() {
@@ -71,6 +85,7 @@ export default function PlannerPage() {
   const handleCellPress = useCallback(async (dateStr: string, time: string) => {
     if (pendingActivity) {
       const endTime = calcEndTime(time, pendingActivity.duration);
+      if (hasOverlap(events, dateStr, time, endTime)) return;
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,11 +108,12 @@ export default function PlannerPage() {
     } else {
       setCellModal({ date: dateStr, time });
     }
-  }, [pendingActivity, handleDeleteActivity]);
+  }, [pendingActivity, events, handleDeleteActivity]);
 
   const handlePickActivityConfirm = useCallback(async (activity: Activity) => {
     if (!cellModal) return;
     const endTime = calcEndTime(cellModal.time, activity.duration);
+    if (hasOverlap(events, cellModal.date, cellModal.time, endTime)) return;
     const res = await fetch('/api/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -116,7 +132,7 @@ export default function PlannerPage() {
     setEvents((prev) => [...prev, newEvent]);
     await handleDeleteActivity(activity.id);
     setCellModal(null);
-  }, [cellModal, handleDeleteActivity]);
+  }, [cellModal, events, handleDeleteActivity]);
 
   const handleDragEnd = useCallback(
     async (result: DropResult) => {
@@ -139,6 +155,7 @@ export default function PlannerPage() {
         if (!activityData) return;
         const startTime = '09:00';
         const endTime = calcEndTime(startTime, activityData.duration);
+        if (hasOverlap(events, dateStr, startTime, endTime)) return;
         const res = await fetch('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -161,9 +178,10 @@ export default function PlannerPage() {
         const eventId = draggableId.replace('event-', '');
         const existingEvent = events.find((e) => e.id === eventId);
         if (!existingEvent) return;
-        await handleDeleteEvent(eventId);
         const startTime = '09:00';
         const endTime = calcEndTime(startTime, existingEvent.duration);
+        if (hasOverlap(events.filter((e) => e.id !== eventId), dateStr, startTime, endTime)) return;
+        await handleDeleteEvent(eventId);
         const res = await fetch('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -216,9 +234,13 @@ export default function PlannerPage() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={() => navigate('prev')} className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-lg transition">›</button>
-            <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition font-medium whitespace-nowrap">היום</button>
-            <button onClick={() => navigate('next')} className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-lg transition">‹</button>
+            <button onClick={() => navigate('next')} className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-lg transition">›</button>
+            <button onClick={() => setCurrentDate(new Date())} className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg transition font-medium whitespace-nowrap">
+              {viewMode === 'day' && format(currentDate, 'd MMMM yyyy', { locale: he })}
+              {viewMode === 'week' && (() => { const ws = startOfWeek(currentDate, { weekStartsOn: 0 }); return `${format(ws, 'd.M')} - ${format(addDays(ws, 6), 'd.M')}`; })()}
+              {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: he })}
+            </button>
+            <button onClick={() => navigate('prev')} className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-lg transition">‹</button>
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
