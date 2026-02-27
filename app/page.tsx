@@ -7,8 +7,8 @@ import ActivityPool from '@/components/ActivityPool';
 import DayView from '@/components/DayView';
 import WeekView from '@/components/WeekView';
 import MonthView from '@/components/MonthView';
-import { ScheduleActivityModal, PickActivityModal } from '@/components/ScheduleModal';
-import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay, format } from 'date-fns';
+import { PickActivityModal } from '@/components/ScheduleModal';
+import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, isBefore, isSameDay } from 'date-fns';
 import { signOut } from 'next-auth/react';
 
 const TODAY = new Date();
@@ -29,9 +29,8 @@ export default function PlannerPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showPool, setShowPool] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [scheduleModal, setScheduleModal] = useState<Activity | null>(null);
+  const [pendingActivity, setPendingActivity] = useState<Activity | null>(null);
   const [cellModal, setCellModal] = useState<{ date: string; time: string } | null>(null);
-  const [lastModalDate, setLastModalDate] = useState(new Date());
 
   useEffect(() => {
     Promise.all([
@@ -69,34 +68,31 @@ export default function PlannerPage() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
-  const handleScheduleConfirm = useCallback(async (startTime: string, date: Date) => {
-    if (!scheduleModal) return;
-    setLastModalDate(date);
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const endTime = calcEndTime(startTime, scheduleModal.duration);
-    const res = await fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activityId: scheduleModal.id,
-        title: scheduleModal.title,
-        description: scheduleModal.description,
-        duration: scheduleModal.duration,
-        color: scheduleModal.color,
-        date: dateStr,
-        startTime,
-        endTime,
-      }),
-    });
-    const newEvent = await res.json();
-    setEvents((prev) => [...prev, newEvent]);
-    await handleDeleteActivity(scheduleModal.id);
-    setScheduleModal(null);
-  }, [scheduleModal, handleDeleteActivity]);
-
-  const handleCellPress = useCallback((dateStr: string, time: string) => {
-    setCellModal({ date: dateStr, time });
-  }, []);
+  const handleCellPress = useCallback(async (dateStr: string, time: string) => {
+    if (pendingActivity) {
+      const endTime = calcEndTime(time, pendingActivity.duration);
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activityId: pendingActivity.id,
+          title: pendingActivity.title,
+          description: pendingActivity.description,
+          duration: pendingActivity.duration,
+          color: pendingActivity.color,
+          date: dateStr,
+          startTime: time,
+          endTime,
+        }),
+      });
+      const newEvent = await res.json();
+      setEvents((prev) => [...prev, newEvent]);
+      await handleDeleteActivity(pendingActivity.id);
+      setPendingActivity(null);
+    } else {
+      setCellModal({ date: dateStr, time });
+    }
+  }, [pendingActivity, handleDeleteActivity]);
 
   const handlePickActivityConfirm = useCallback(async (activity: Activity) => {
     if (!cellModal) return;
@@ -254,20 +250,11 @@ export default function PlannerPage() {
                 onAdd={handleAddActivity}
                 onDelete={handleDeleteActivity}
                 onClearAll={handleClearAll}
-                onSchedule={(activity) => setScheduleModal(activity)}
+                onSchedule={(activity) => setPendingActivity(activity)}
               />
             </div>
           )}
         </div>
-
-        {scheduleModal && (
-          <ScheduleActivityModal
-            activity={scheduleModal}
-            initialDate={lastModalDate}
-            onConfirm={handleScheduleConfirm}
-            onClose={() => setScheduleModal(null)}
-          />
-        )}
 
         {cellModal && (
           <PickActivityModal
