@@ -44,6 +44,7 @@ export default function PlannerPage() {
   const [showPool, setShowPool] = useState(true);
   const [loading, setLoading] = useState(true);
   const [pendingActivity, setPendingActivity] = useState<Activity | null>(null);
+  const [movingEventId, setMovingEventId] = useState<string | null>(null);
   const [cellModal, setCellModal] = useState<{ date: string; time: string } | null>(null);
 
   useEffect(() => {
@@ -82,7 +83,27 @@ export default function PlannerPage() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
+  const handleEventMove = useCallback((eventId: string) => {
+    setMovingEventId(eventId);
+  }, []);
+
   const handleCellPress = useCallback(async (dateStr: string, time: string) => {
+    if (movingEventId) {
+      const movingEvent = events.find((e) => e.id === movingEventId);
+      if (!movingEvent) { setMovingEventId(null); return; }
+      const endTime = calcEndTime(time, movingEvent.duration);
+      if (hasOverlap(events.filter((e) => e.id !== movingEventId), dateStr, time, endTime)) return;
+      await fetch(`/api/events?id=${movingEventId}`, { method: 'DELETE' });
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...movingEvent, id: undefined, date: dateStr, startTime: time, endTime }),
+      });
+      const newEvent = await res.json();
+      setEvents((prev) => [...prev.filter((e) => e.id !== movingEventId), newEvent]);
+      setMovingEventId(null);
+      return;
+    }
     if (pendingActivity) {
       if (viewMode !== 'day') {
         setCurrentDate(new Date(dateStr + 'T00:00:00'));
@@ -118,7 +139,7 @@ export default function PlannerPage() {
       }
       setCellModal({ date: dateStr, time });
     }
-  }, [pendingActivity, events, viewMode, handleDeleteActivity]);
+  }, [movingEventId, pendingActivity, events, viewMode, handleDeleteActivity]);
 
   const handlePickActivityConfirm = useCallback(async (activity: Activity) => {
     if (!cellModal) return;
@@ -280,9 +301,24 @@ export default function PlannerPage() {
           </div>
         )}
 
+        {movingEventId && (() => {
+          const ev = events.find((e) => e.id === movingEventId);
+          return ev ? (
+            <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
+              <span className="text-sm font-medium">הזז את: {ev.title} — לחץ על מיקום חדש</span>
+              <button
+                onClick={() => setMovingEventId(null)}
+                className="text-white/80 hover:text-white text-sm px-2 py-0.5 rounded hover:bg-white/20 transition"
+              >
+                ביטול
+              </button>
+            </div>
+          ) : null;
+        })()}
+
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col overflow-hidden bg-white">
-            {viewMode === 'day' && <DayView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} />}
+            {viewMode === 'day' && <DayView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} onEventMove={handleEventMove} />}
             {viewMode === 'week' && <WeekView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} />}
             {viewMode === 'month' && <MonthView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} minDate={TODAY} maxDate={addMonths(TODAY, 120)} onCellPress={handleCellPress} />}
           </div>

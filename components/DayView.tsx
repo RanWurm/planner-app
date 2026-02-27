@@ -1,23 +1,42 @@
 'use client';
 
 import { CalendarEvent } from '@/types';
-import { Droppable, Draggable } from '@hello-pangea/dnd';
-import { format, parseISO } from 'date-fns';
+import { Droppable } from '@hello-pangea/dnd';
+import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOT_HEIGHT = 60; // px per hour
+const LONG_PRESS_MS = 500;
 
 interface Props {
   date: Date;
   events: CalendarEvent[];
   onDeleteEvent: (id: string) => void;
   onCellPress: (dateStr: string, time: string) => void;
+  onEventMove?: (eventId: string) => void;
 }
 
-export default function DayView({ date, events, onDeleteEvent, onCellPress }: Props) {
+export default function DayView({ date, events, onDeleteEvent, onCellPress, onEventMove }: Props) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+
+  const startLongPress = useCallback((event: CalendarEvent) => {
+    didLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true;
+      onEventMove?.(event.id);
+    }, LONG_PRESS_MS);
+  }, [onEventMove]);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
   const dateStr = format(date, 'yyyy-MM-dd');
   const dayEvents = events.filter((e) => e.date === dateStr);
 
@@ -86,62 +105,63 @@ export default function DayView({ date, events, onDeleteEvent, onCellPress }: Pr
                 }}
               >
                 {/* Placed events */}
-                {dayEvents.map((event, idx) => {
+                {dayEvents.map((event) => {
                   const style = getEventStyle(event);
                   const isExpanded = expandedEventId === event.id;
                   return (
-                    <Draggable key={event.id} draggableId={`event-${event.id}`} index={idx}>
-                      {(dragProvided, dragSnapshot) => (
-                        <div
-                          ref={dragProvided.innerRef}
-                          {...dragProvided.draggableProps}
-                          {...dragProvided.dragHandleProps}
-                          className={`absolute left-1 right-1 rounded-lg px-2 py-1 shadow-sm cursor-grab overflow-hidden ${
-                            dragSnapshot.isDragging ? 'shadow-lg z-50 opacity-90' : ''
-                          }`}
-                          style={{
-                            top: style.top,
-                            height: style.height,
-                            backgroundColor: event.color + '20',
-                            borderRight: `3px solid ${event.color}`,
-                            ...dragProvided.draggableProps.style,
-                          }}
-                          onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
-                        >
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs font-semibold text-gray-800 truncate">
-                                  {event.title}
-                                </span>
-                                {event.description && (
-                                  <span
-                                    className="w-3.5 h-3.5 rounded-full text-white text-[9px] flex items-center justify-center flex-shrink-0"
-                                    style={{ backgroundColor: event.color }}
-                                  >
-                                    i
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-gray-500">
-                                {event.startTime} - {event.endTime}
-                              </div>
-                            </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onDeleteEvent(event.id); }}
-                              className="text-gray-300 hover:text-red-400 text-base leading-none flex-shrink-0"
-                            >
-                              ×
-                            </button>
+                    <div
+                      key={event.id}
+                      className="absolute left-1 right-1 rounded-lg px-2 py-1 shadow-sm cursor-pointer overflow-hidden select-none"
+                      style={{
+                        top: style.top,
+                        height: style.height,
+                        backgroundColor: event.color + '20',
+                        borderRight: `3px solid ${event.color}`,
+                      }}
+                      onTouchStart={() => startLongPress(event)}
+                      onTouchEnd={cancelLongPress}
+                      onTouchMove={cancelLongPress}
+                      onMouseDown={() => startLongPress(event)}
+                      onMouseUp={cancelLongPress}
+                      onMouseLeave={cancelLongPress}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (didLongPress.current) return;
+                        setExpandedEventId(isExpanded ? null : event.id);
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-semibold text-gray-800 truncate">
+                              {event.title}
+                            </span>
+                            {event.description && (
+                              <span
+                                className="w-3.5 h-3.5 rounded-full text-white text-[9px] flex items-center justify-center flex-shrink-0"
+                                style={{ backgroundColor: event.color }}
+                              >
+                                i
+                              </span>
+                            )}
                           </div>
-                          {isExpanded && event.description && (
-                            <div className="text-[10px] text-gray-600 mt-1 border-t border-black/5 pt-1">
-                              {event.description}
-                            </div>
-                          )}
+                          <div className="text-[10px] text-gray-500">
+                            {event.startTime} - {event.endTime}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteEvent(event.id); }}
+                          className="text-gray-300 hover:text-red-400 text-base leading-none flex-shrink-0"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {isExpanded && event.description && (
+                        <div className="text-[10px] text-gray-600 mt-1 border-t border-black/5 pt-1">
+                          {event.description}
                         </div>
                       )}
-                    </Draggable>
+                    </div>
                   );
                 })}
                 {provided.placeholder}
