@@ -1,0 +1,29 @@
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import { SessionProvider } from 'next-auth/react';
+
+export const metadata: Metadata = {
+  title: 'היומן שלי',
+  description: 'יומן פעילויות אישי',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="he" dir="rtl">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+      </head>
+      <body style={{ fontFamily: "'Heebo', sans-serif" }}>
+        <SessionProvider>{children}</SessionProvider>
+      </body>
+    </html>
+  );
+}
