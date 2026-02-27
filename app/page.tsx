@@ -84,6 +84,11 @@ export default function PlannerPage() {
 
   const handleCellPress = useCallback(async (dateStr: string, time: string) => {
     if (pendingActivity) {
+      if (viewMode !== 'day') {
+        setCurrentDate(new Date(dateStr + 'T00:00:00'));
+        setViewMode('day');
+        return;
+      }
       const endTime = calcEndTime(time, pendingActivity.duration);
       if (hasOverlap(events, dateStr, time, endTime)) return;
       const res = await fetch('/api/events', {
@@ -106,9 +111,14 @@ export default function PlannerPage() {
       setPendingActivity(null);
       setShowPool(true);
     } else {
+      if (viewMode !== 'day') {
+        setCurrentDate(new Date(dateStr + 'T00:00:00'));
+        setViewMode('day');
+        return;
+      }
       setCellModal({ date: dateStr, time });
     }
-  }, [pendingActivity, events, handleDeleteActivity]);
+  }, [pendingActivity, events, viewMode, handleDeleteActivity]);
 
   const handlePickActivityConfirm = useCallback(async (activity: Activity) => {
     if (!cellModal) return;
