@@ -161,7 +161,7 @@ export default function ActivityPool({ activities, onAdd, onDelete, onClearAll, 
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    className={`relative bg-white rounded-xl border p-3 shadow-sm transition-shadow ${
+                    className={`relative bg-white rounded-xl border p-3 shadow-sm transition-shadow cursor-pointer ${
                       snapshot.isDragging ? 'shadow-lg rotate-1' : 'hover:shadow-md'
                     }`}
                     style={{
@@ -170,6 +170,7 @@ export default function ActivityPool({ activities, onAdd, onDelete, onClearAll, 
                       borderRightColor: activity.color,
                       ...provided.draggableProps.style,
                     }}
+                    onClick={() => onSchedule(activity)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -191,16 +192,6 @@ export default function ActivityPool({ activities, onAdd, onDelete, onClearAll, 
                         </div>
                         <span className="text-xs text-gray-400">{activity.duration} דקות</span>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSchedule(activity);
-                        }}
-                        className="text-gray-300 hover:text-indigo-500 transition text-sm leading-none flex-shrink-0"
-                        title="תזמן פעילות"
-                      >
-                        +
-                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

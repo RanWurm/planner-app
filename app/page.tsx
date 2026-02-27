@@ -89,6 +89,7 @@ export default function PlannerPage() {
       setEvents((prev) => [...prev, newEvent]);
       await handleDeleteActivity(pendingActivity.id);
       setPendingActivity(null);
+      setShowPool(true);
     } else {
       setCellModal({ date: dateStr, time });
     }
@@ -236,6 +237,18 @@ export default function PlannerPage() {
           </div>
         </header>
 
+        {pendingActivity && (
+          <div className="bg-indigo-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
+            <span className="text-sm font-medium">בחר מיקום ביומן עבור: {pendingActivity.title}</span>
+            <button
+              onClick={() => { setPendingActivity(null); setShowPool(true); }}
+              className="text-white/80 hover:text-white text-sm px-2 py-0.5 rounded hover:bg-white/20 transition"
+            >
+              ביטול
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col overflow-hidden bg-white">
             {viewMode === 'day' && <DayView date={currentDate} events={events} onDeleteEvent={handleDeleteEvent} onCellPress={handleCellPress} />}
@@ -250,7 +263,7 @@ export default function PlannerPage() {
                 onAdd={handleAddActivity}
                 onDelete={handleDeleteActivity}
                 onClearAll={handleClearAll}
-                onSchedule={(activity) => setPendingActivity(activity)}
+                onSchedule={(activity) => { setPendingActivity(activity); setShowPool(false); }}
               />
             </div>
           )}
