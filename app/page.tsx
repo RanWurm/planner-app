@@ -246,7 +246,7 @@ export default function PlannerPage() {
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={() => setShowPool(!showPool)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${showPool ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}
+              className={`hidden sm:block px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${showPool ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}
             >
               🎯
             </button>
@@ -279,7 +279,7 @@ export default function PlannerPage() {
           </div>
 
           {showPool && (
-            <div className="w-60 sm:w-64 border-r border-gray-200 bg-white flex flex-col p-3 overflow-hidden flex-shrink-0">
+            <div className="hidden sm:flex w-64 border-r border-gray-200 bg-white flex-col p-3 overflow-hidden flex-shrink-0">
               <ActivityPool
                 activities={activities}
                 onAdd={handleAddActivity}
@@ -290,6 +290,32 @@ export default function PlannerPage() {
             </div>
           )}
         </div>
+
+        {/* Mobile bottom sheet */}
+        {showPool && (
+          <div className="sm:hidden fixed inset-x-0 bottom-0 h-1/2 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-40 flex flex-col rounded-t-2xl">
+            <div className="flex items-center justify-center pt-2 pb-1">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              <ActivityPool
+                activities={activities}
+                onAdd={handleAddActivity}
+                onDelete={handleDeleteActivity}
+                onClearAll={handleClearAll}
+                onSchedule={(activity) => { setPendingActivity(activity); setShowPool(false); }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Mobile floating toggle */}
+        <button
+          onClick={() => setShowPool(!showPool)}
+          className="sm:hidden fixed bottom-4 left-4 z-50 w-12 h-12 rounded-full bg-indigo-500 text-white shadow-lg flex items-center justify-center text-xl active:scale-95 transition"
+        >
+          {showPool ? '✕' : '🎯'}
+        </button>
 
         {cellModal && (
           <PickActivityModal
