@@ -4,39 +4,23 @@ import { CalendarEvent } from '@/types';
 import { Droppable } from '@hello-pangea/dnd';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOT_HEIGHT = 60; // px per hour
-const LONG_PRESS_MS = 500;
 
 interface Props {
   date: Date;
   events: CalendarEvent[];
   onDeleteEvent: (id: string) => void;
   onCellPress: (dateStr: string, time: string) => void;
-  onEventMove?: (eventId: string) => void;
+  onEventUpdate?: (eventId: string, newStartTime: string) => void;
+  onEventToPool?: (eventId: string) => void;
 }
 
-export default function DayView({ date, events, onDeleteEvent, onCellPress, onEventMove }: Props) {
-  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const didLongPress = useRef(false);
-
-  const startLongPress = useCallback((event: CalendarEvent) => {
-    didLongPress.current = false;
-    longPressTimer.current = setTimeout(() => {
-      didLongPress.current = true;
-      onEventMove?.(event.id);
-    }, LONG_PRESS_MS);
-  }, [onEventMove]);
-
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
+export default function DayView({ date, events, onDeleteEvent, onCellPress, onEventUpdate, onEventToPool }: Props) {
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [editTime, setEditTime] = useState('');
   const dateStr = format(date, 'yyyy-MM-dd');
   const dayEvents = events.filter((e) => e.date === dateStr);
 
@@ -107,27 +91,27 @@ export default function DayView({ date, events, onDeleteEvent, onCellPress, onEv
                 {/* Placed events */}
                 {dayEvents.map((event) => {
                   const style = getEventStyle(event);
-                  const isExpanded = expandedEventId === event.id;
+                  const isSelected = selectedEventId === event.id;
                   return (
                     <div
                       key={event.id}
-                      className="absolute left-1 right-1 rounded-lg px-2 py-1 shadow-sm cursor-pointer overflow-hidden select-none"
+                      className={`absolute left-1 right-1 rounded-lg px-2 py-1 shadow-sm cursor-pointer overflow-visible select-none ${
+                        isSelected ? 'z-30 ring-2 ring-indigo-400' : ''
+                      }`}
                       style={{
                         top: style.top,
-                        height: style.height,
+                        minHeight: style.height,
                         backgroundColor: event.color + '20',
                         borderRight: `3px solid ${event.color}`,
                       }}
-                      onTouchStart={() => startLongPress(event)}
-                      onTouchEnd={cancelLongPress}
-                      onTouchMove={cancelLongPress}
-                      onMouseDown={() => startLongPress(event)}
-                      onMouseUp={cancelLongPress}
-                      onMouseLeave={cancelLongPress}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (didLongPress.current) return;
-                        setExpandedEventId(isExpanded ? null : event.id);
+                        if (isSelected) {
+                          setSelectedEventId(null);
+                        } else {
+                          setSelectedEventId(event.id);
+                          setEditTime(event.startTime);
+                        }
                       }}
                     >
                       <div className="flex items-start justify-between gap-1">
@@ -156,9 +140,43 @@ export default function DayView({ date, events, onDeleteEvent, onCellPress, onEv
                           ×
                         </button>
                       </div>
-                      {isExpanded && event.description && (
-                        <div className="text-[10px] text-gray-600 mt-1 border-t border-black/5 pt-1">
-                          {event.description}
+                      {isSelected && (
+                        <div
+                          className="mt-1 pt-1.5 border-t border-black/10 space-y-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {event.description && (
+                            <div className="text-[10px] text-gray-600">{event.description}</div>
+                          )}
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
+                              className="text-xs border border-gray-200 rounded px-1.5 py-0.5 w-20 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                            <button
+                              onClick={() => {
+                                if (editTime && editTime !== event.startTime) {
+                                  onEventUpdate?.(event.id, editTime);
+                                  setSelectedEventId(null);
+                                }
+                              }}
+                              disabled={!editTime || editTime === event.startTime}
+                              className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded disabled:opacity-40 hover:bg-indigo-600 transition"
+                            >
+                              עדכן
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => {
+                              onEventToPool?.(event.id);
+                              setSelectedEventId(null);
+                            }}
+                            className="text-[10px] w-full py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition"
+                          >
+                            החזר לבריכה
+                          </button>
                         </div>
                       )}
                     </div>
