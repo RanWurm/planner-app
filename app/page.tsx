@@ -188,14 +188,13 @@ export default function PlannerPage() {
         const eventId = draggableId.replace('event-', '');
         const existingEvent = events.find((e) => e.id === eventId);
         if (!existingEvent) return;
-        const startTime = '09:00';
-        const endTime = calcEndTime(startTime, existingEvent.duration);
-        if (hasOverlap(events.filter((e) => e.id !== eventId), dateStr, startTime, endTime)) return;
+        if (srcId === destId) return;
+        if (hasOverlap(events.filter((e) => e.id !== eventId), dateStr, existingEvent.startTime, existingEvent.endTime)) return;
         await handleDeleteEvent(eventId);
         const res = await fetch('/api/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...existingEvent, id: undefined, date: dateStr, startTime, endTime }),
+          body: JSON.stringify({ ...existingEvent, id: undefined, date: dateStr }),
         });
         const newEvent = await res.json();
         setEvents((prev) => [...prev, newEvent]);
